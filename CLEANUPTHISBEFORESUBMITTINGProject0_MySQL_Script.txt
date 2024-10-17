@@ -1,0 +1,142 @@
+/*
+show databases;
+use revature_project1_db;
+-- Import student_exam_results.csv, student_exam_survey.csv, and student_list.csv with Table Import 
+-- Wizard
+
+-- Create master table of all data identified by Student_ID
+create table combined_student_data AS
+	select
+		er.Student_ID, er.math_score, er.reading_score, er.writing_score,
+		es.parental_level_of_education, es.lunch_plan, es.test_preparation_course,
+		sl.Gender, sl.Year_Group
+	from student_exam_results er
+	inner join
+		student_exam_survey es 
+		on er.Student_ID = es.Student_ID
+	inner join
+	student_list sl 
+	on er.Student_ID = sl.Student_ID;
+
+-- Check datatypes of newly created combined_student_data table
+show create table combined_student_data;
+
+-- Change datatype for Student_ID so it can be assigned a primary key (Error if in text Dtype)
+alter table combined_student_data
+modify Student_ID varchar(24) primary key;
+
+-- Change datatype for Gender to  save storage space on field that at most is 1 char
+alter table combined_student_data
+modify Gender char(1);
+
+-- Change dtype for Year_Group to more DB specific Dtype for manipulation and storage
+alter table combined_student_data
+modify Year_Group varchar(24);
+
+-- Ensure Dtype changes have persisted
+show create table combined_student_data;
+
+/*
+-- Check for rows with at least 1 null value
+select * 
+from combined_student_data
+where Student_ID is null or math_score is null or reading_score is null or writing_score is null
+	or parental_level_of_education is null or lunch_plan is null or test_preparation_course is null
+    or Gender is null or Year_Group is null;
+*/
+
+-- No null values in any columns found. combined_student_data was exported to a csv and used in a
+-- Juputer Notebook to get a birds eye view as follows ---> See attached .ipynb file and pairplot
+
+-- Create fact table
+create table exam_scores (
+	Student_ID varchar(24) primary key,
+    math_score integer default null,
+    reading_score integer default null,
+    writing_score integer default null
+);
+-- Insert properly DType formatted, verified non-null/clean data into exam_scores fact table
+insert into exam_scores (Student_ID, math_score, reading_score, writing_score)
+select Student_ID, math_score, reading_score, writing_score
+		from combined_student_data;
+
+-- Ensure we can query newly created table
+select * from exam_scores
+limit 10;
+
+-- Check DTypes of newly created table (make sure Student_ID is varchar(24) and not 'text')
+show create table exam_scores;
+
+-- Create student dimension table
+drop table student;
+create table student (
+    Student_ID varchar(24) primary key,
+    Gender char(1) default null,
+    Year_Group varchar(24) default null,
+    lunch_plan integer default null
+);
+-- Insert data to new student table from combined_student_data table
+insert into student (Student_ID, Gender, Year_Group, lunch_plan)
+select Student_ID, Gender, Year_Group, lunch_plan
+		from combined_student_data;
+
+-- Make sure we can query newly created table
+select * from student
+limit 5;
+
+-- Check structure of student table
+show create table student;
+
+-- Create parental_education dimension table
+-- drop table tableName;
+create table parental_education (
+    Student_ID varchar(24) primary key,
+    parental_level_of_education integer default null
+);
+-- Insert data to new parental_education table from combined_student_data table
+insert into parental_education (Student_ID, parental_level_of_education)
+select Student_ID, parental_level_of_education
+		from combined_student_data;
+
+-- Make sure we can query newly created table
+select * from parental_education
+limit 5;
+
+-- Check structure of parental_education table
+show create table parental_education;
+
+-- Create test_prep dimension table
+-- drop table tableName;
+create table test_prep (
+    Student_ID varchar(24) primary key,
+    test_preparation_course integer default null
+);
+-- Insert data to new parental_education table from combined_student_data table
+insert into test_prep (Student_ID, test_preparation_course)
+select Student_ID, test_preparation_course
+		from combined_student_data;
+
+-- Make sure we can query newly created table
+select * from test_prep
+limit 5;
+
+-- Check structure of test_prep table
+show create table test_prep;
+
+-- Establish PK/FK relationships between fact table and dimension tables
+alter table exam_scores
+add constraint fk_student
+foreign key (Student_ID) references student(Student_ID)
+on delete cascade;
+
+alter table exam_scores
+add constraint fk_parental_education
+foreign key (Student_ID) references parental_education(Student_ID)
+on delete cascade;
+
+alter table exam_scores
+add constraint fk_test_prep
+foreign key (Student_ID) references test_prep(Student_ID)
+on delete cascade;
+
+show create table exam_scores;
