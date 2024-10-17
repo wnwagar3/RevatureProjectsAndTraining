@@ -1,0 +1,116 @@
+-- Average scores across subjects grouped and ordered by Year_Group
+select Year_Group, avg(math_score) as avg_math_score, avg(reading_score) as avg_reading_score, 
+        avg(writing_score) as avg_writing_score
+from `Revature_Project0.exam_scores` es
+inner join `Revature_Project0.student` s 
+on es.Student_ID = s.Student_ID
+group by Year_Group
+order by Year_Group;
+
+-- Average scores across subjects grouped by gender
+select Gender, avg(math_score) as avg_math_score, avg(reading_score) as avg_reading_score, 
+       avg(writing_score) as avg_writing_score
+from `Revature_Project0.exam_scores` es
+inner join `Revature_Project0.student` s 
+on es.Student_ID = s.Student_ID
+group by Gender;
+
+
+
+-- How does parental level of education affect student test scores?
+SELECT
+  Parental_Education_Level,
+  round(avg_math_score,2) as Average_Math_Score,
+  round(avg_reading_score,2) as Average_Reading_Score,
+  round(avg_writing_score, 2)as Average_Writing_Score,
+  round(((avg_math_score + avg_reading_score + avg_writing_score) / 3),2) AS Aggregate_Test_Average
+FROM (
+  SELECT
+    CASE parental_level_of_education
+      WHEN 1 THEN 'Some High School'
+      WHEN 2 THEN 'High School'
+      WHEN 3 THEN 'Some College'
+      WHEN 4 THEN 'Associates Degree'
+      WHEN 5 THEN 'Bachelors Degree'
+      WHEN 6 THEN 'Master\'s Degree'
+      ELSE 'Unknown'
+    END AS Parental_Education_Level,
+    AVG(math_score) AS avg_math_score,
+    AVG(reading_score) AS avg_reading_score, 
+    AVG(writing_score) AS avg_writing_score
+  FROM `Revature_Project0.exam_scores` es
+  INNER JOIN `Revature_Project0.parental_education` pe ON es.Student_ID = pe.Student_ID
+  GROUP BY Parental_Education_Level
+) AS subquery;
+
+
+---	How well did the test preparation course help students?
+
+select tp.test_preparation_course, avg(es.math_score) as Average_Math_Score, avg(es.reading_score) as Average_Reading_Score, 
+      avg(writing_score) as Average_Writing_Score
+from `Revature_Project0.test_prep` tp
+inner join `Revature_Project0.exam_scores` es
+on tp.Student_ID = es.Student_ID
+group by tp.test_preparation_course;
+
+---- Students grouped into categories based on parental_education value
+---- Where value 1 = "No High School Degree' 2-3 = "High School Degree" and 4-6 = "Post High School Degree" 
+---- This query finds average scores for logical minimum parental education value groupings 
+---- As well the aggregate test score for each group and what % of that group took the prep_test
+WITH Averages AS (
+  SELECT
+    CASE
+      WHEN parental_level_of_education = 1 THEN 'No High School Degree'
+      WHEN parental_level_of_education >= 2 AND parental_level_of_education <= 3 THEN 'High School Degree'
+      ELSE 'Post High School Degree'
+    END AS Parental_Education_Level_Group, 
+    ROUND(AVG(math_score), 2) AS Average_Math_Score,
+    ROUND(AVG(reading_score), 2) AS Average_Reading_Score,
+    ROUND(AVG(writing_score), 2) AS Average_Writing_Score
+  FROM
+    `Revature_Project0.parental_education` pe
+  INNER JOIN
+    `Revature_Project0.exam_scores` es ON pe.Student_ID = es.Student_ID
+  GROUP BY
+    Parental_Education_Level_Group
+), TestPrepCounts AS (
+  SELECT
+    CASE
+      WHEN parental_level_of_education = 1 THEN 'No High School Degree'
+      WHEN parental_level_of_education >= 2 AND parental_level_of_education <= 3 THEN 'High School Degree'
+      ELSE 'Post High School Degree'
+    END AS Parental_Education_Level_Group, 
+    COUNT(*) AS Total_Students,
+    SUM(test_preparation_course) AS Students_Took_Test_Preparation
+  FROM
+    `Revature_Project0.parental_education` pe
+  INNER JOIN
+    `Revature_Project0.test_prep` tp ON pe.Student_ID = tp.Student_ID
+  GROUP BY
+    Parental_Education_Level_Group
+)
+SELECT
+  A.Parental_Education_Level_Group,
+  A.Average_Math_Score,
+  A.Average_Reading_Score,
+  A.Average_Writing_Score,
+  ROUND((A.Average_Math_Score + A.Average_Reading_Score + A.Average_Writing_Score) / 3, 2) AS Average_Score_Across_Groups,
+  ROUND(100 * IFNULL(TP.Students_Took_Test_Preparation, 0) / TP.Total_Students, 2) AS Percentage_Took_Test_Preparation
+FROM
+  Averages A
+LEFT JOIN
+  TestPrepCounts TP ON A.Parental_Education_Level_Group = TP.Parental_Education_Level_Group;
+
+
+
+
+--TODO:
+
+-- Percent of free/reduced lunch students that took prep_test vs percent of standard lunch students that took prep_test
+
+-- Does parental education level indicate free/reduced lunch likelyhood?
+
+-- Split1,2-3 and 4-6 columns like above, correlate high and low column to value of free/reduced lunch or standard 
+----- Use the CORR function and you will need to draw all values from table with all the data... I think.... Or can we use CORR on a joined result set 
+----- or does CORR have to have all its data drawn from a master table with all variables being analyzed?
+

@@ -1,0 +1,116 @@
+-- Upon upload of csv, student_list table column headers did not upload correctly
+-- Rename student_list columns to Student_ID, Gender, and Year_Group, respectively
+/*
+alter table Revature_Project0.student_list
+  rename column string_field_0 to Student_ID,
+  rename column string_field_1 to Gender,
+  rename column string_field_2 to Year_Group;
+*/
+-- Ensure column names changed
+-- select * from `Revature_Project0.student_list`;
+
+-- Create master table of all data identified and joined by Student_ID 
+
+create table Revature_Project0.combined_student_data AS
+  select 
+    er.Student_ID, er.math_score, er.reading_score, er.writing_score,
+    es.parental_level_of_education, es.lunch_plan, es.test_preparation_course,
+    sl.Gender, sl.Year_Group
+  from `Revature_Project0.student_exam_results` er
+  inner join `Revature_Project0.student_exam_survey` es
+    on er.Student_ID = es.Student_ID
+  inner join `Revature_Project0.student_list` sl
+    on er.Student_ID = sl.Student_ID;
+
+-- Ensure we can query new combined_student_data table
+select * from `Revature_Project0.combined_student_data`;
+
+-- 1000 Rows after combining tells me each row matched with a respective row in both other tables
+-- Now we search for null values
+
+select count(*) as NULL_COUNT
+from `Revature_Project0.combined_student_data`
+where Student_ID is null or math_score is null or reading_score is null or writing_score is null
+	or parental_level_of_education is null or lunch_plan is null or test_preparation_course is null
+    or Gender is null or Year_Group is null;
+
+-- No null values means no imputation
+-- Suggests quality data as evidenced by consistency across csvs to join exactly with 1:1:1 relationship between Student_ID values
+-- Consistency indicates value placed in architecture which further suggests quality data as time and thought was put into collection
+
+-- Code below shows that there are 1000 unique Student_ID values which means each ID represents a different unique student and there are no duplicates
+-- 1000 unique ID values out of 1000 given rows further indicates high quality data and collection methods
+
+select count(distinct Student_ID) as Unique_Student_Count
+from `Revature_Project0.combined_student_data`;
+
+create table Revature_Project0.exam_scores (
+  Student_ID string primary key not enforced,
+  math_score integer default null,
+  reading_score integer default null,
+  writing_score integer default null
+);
+
+-- Insert data from combined table into newly created exam_scores (Fact) table
+insert into `Revature_Project0.exam_scores` (Student_ID, math_score, reading_score, writing_score)
+  select Student_ID, math_score, reading_score, writing_score
+  from `Revature_Project0.combined_student_data`;
+  
+-- Ensure we can query from new table
+select * from `Revature_Project0.combined_student_data`;
+
+
+-- Create student dimension able **Use Student_ID to link to fact table
+create table `Revature_Project0.student` (
+    Student_ID string primary key not enforced,
+    Gender string default null,
+    Year_Group string default null,
+    lunch_plan integer default null
+);
+
+-- Insert data from combined_student_data into newly created student (dimension) table
+insert into `Revature_Project0.student` (Student_ID, Gender, Year_Group, lunch_plan)
+  select Student_ID, Gender, Year_Group, lunch_plan
+	from `Revature_Project0.combined_student_data`;
+
+-- Create parental_education dimension table ** Use Student_ID to link to fact table (and other dimension tables or to student table in potential snowflake schema)
+create table `Revature_Project0.parental_education` (
+    Student_ID string primary key not enforced,
+    parental_level_of_education integer default null
+);
+
+-- Insert data from combined_student_data into newly created parental_education (dimension) table
+insert into `Revature_Project0.parental_education` (Student_ID, parental_level_of_education)
+  select Student_ID, parental_level_of_education
+  from `Revature_Project0.combined_student_data`;
+
+  -- Create test_prep dimension table ** Use Student_ID to link to fact table (and other dimension tables or to student table in potential snowflake schema)
+create table `Revature_Project0.test_prep` (
+  Student_ID string primary key not enforced,
+  test_preparation_course integer default null
+);
+
+-- Insert data from combine_student_data into newly created test_prep (dimension) table
+insert into `Revature_Project0.test_prep` (Student_ID, test_preparation_course)
+  select Student_ID, test_preparation_course
+  from `Revature_Project0.combined_student_data`;
+
+ -- Establish not enforced (BigQuery doesn't support enforcement of referential integrity) key relationships connecting fact table (exam_scores) to 
+ -- dimension tables (student, parental_level_of_education, test_prep)
+
+  alter table `Revature_Project0.exam_scores` 
+  add constraint fk_student 
+  foreign key (Student_ID) references `Revature_Project0.student`(Student_ID) not enforced;
+
+ 
+  alter table `Revature_Project0.exam_scores` 
+  add constraint fk_parental_education 
+  foreign key (Student_ID) references `Revature_Project0.parental_education`(Student_ID) not enforced;
+
+
+  alter table `Revature_Project0.exam_scores` 
+  add constraint fk_test_prep 
+  foreign key (Student_ID) references `Revature_Project0.test_prep`(Student_ID) not enforced;
+
+  
+******************************************************************************************************************************
